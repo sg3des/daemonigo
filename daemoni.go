@@ -98,6 +98,50 @@ func Daemonize() (isDaemon bool, err error) {
 	return
 }
 
+func DaemonizeAction(action string) (isDaemon bool, err error) {
+	const errLoc = "daemonigo.Daemonize()"
+	isDaemon = os.Getenv(EnvVarName) == EnvVarValue
+	if WorkDir != "" {
+		if err = os.Chdir(WorkDir); err != nil {
+			err = fmt.Errorf(
+				"%s: changing working directory failed, reason -> %s",
+				errLoc, err.Error(),
+			)
+			return
+		}
+	}
+	if isDaemon {
+		syscall.Umask(int(Umask))
+		if _, err = syscall.Setsid(); err != nil {
+			err = fmt.Errorf(
+				"%s: setsid failed, reason -> %s", errLoc, err.Error(),
+			)
+			return
+		}
+		if pidFile, err = lockPidFile(); err != nil {
+			err = fmt.Errorf(
+				"%s: locking PID file failed, reason -> %s",
+				errLoc, err.Error(),
+			)
+		}
+	} else {
+
+		action, exist := actions[action]
+		if exist {
+			action()
+		} else {
+			arr := make([]string, 0, len(actions))
+			for k, _ := range actions {
+				arr = append(arr, k)
+			}
+
+			fmt.Fprintf(os.Stderr, "Usage: %s {%s}\n", os.Args[0], strings.Join(arr, "|"))
+		}
+
+	}
+	return
+}
+
 // Locks PID file with a file lock.
 // Keeps PID file open until applications exits.
 func lockPidFile() (pidFile *os.File, err error) {
